@@ -44,15 +44,19 @@ pinref --version
 When a user asks for visual references (e.g., "Find character concepts", "Show me dark mode fintech dashboards", "Find architecture moodboards"):
 
 ### 1. Run the Search Command
-Execute Pinref via terminal to download a batch and generate the contact sheet:
+Execute Pinref via terminal:
 ```bash
+# Default: saves to OS temp folder (clean, zero workspace clutter)
 pinref search "<query>" --count 12
+
+# Persist in current project workspace (./references/<query-slug>/):
+pinref search "<query>" --save
 ```
 
 ### 2. The Single-Glance Vision Pass
-Call `view_file` on the generated composite sheet:
+Call `view_file` on the generated composite sheet (use the path printed by the command):
 ```
-view_file: AbsolutePath="<workspace>/references/<query-slug>/contact_sheet.jpg"
+view_file: AbsolutePath="<outputPath>/contact_sheet.jpg"
 ```
 In this single image, inspect the entire 12-image grid. Each tile contains:
 - An identifiable index badge: `#1`, `#2`, ... `#12`.
@@ -80,12 +84,13 @@ This fetches the pin's detailed metadata, extracts core concepts, and automatica
 
 ## Command Reference
 
-| Command | Action | Output |
+| Command | Action | Output Destination |
 | :--- | :--- | :--- |
-| `pinref search "<query>"` | Fetch & compile reference sheet | `references/<slug>/contact_sheet.jpg`, `gallery.html`, `metadata.json` |
-| `pinref similar "<pinId>"` | Fetch variations matching a pin | New contact sheet tailored to that pin's style |
+| `pinref search "<query>"` | Fetch & compile reference sheet | System Temp (`/tmp/pinref/...`) |
+| `pinref search "<query>" --save` | Fetch & save to project workspace | `./references/<slug>/` |
+| `pinref similar "<pinId>"` | Fetch variations matching a pin | System Temp (or pass `--save`) |
 | `pinref pin "<pinId>"` | Inspect title, description, repins | Metadata printed to stdout |
-| `pinref "<query>" -c 8` | Shortcut with custom count | 8-image reference sheet |
+| `pinref clean` | Clear cached temp references | Deletes temp cache |
 
 ---
 

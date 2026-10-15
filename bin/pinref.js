@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const PinterestApi = require('../src/api');
 const { downloadBatch } = require('../src/downloader');
@@ -16,26 +18,41 @@ USAGE:
   pinref search <query> [options]       Search & build a reference sheet
   pinref similar <pinId> [options]      Find more references similar to a Pin
   pinref pin <pinId>                    Inspect single pin metadata
+  pinref clean [options]                Clean cached temp or local references
   pinref "<query>"                      Quick shortcut for search
 
-OPTIONS:
+STORAGE OPTIONS:
+  (default)               Saves to system temp folder (${os.tmpdir()}/pinref)
+                          Zero workspace clutter; auto-cleaned by OS.
+  -s, --save              Persist into the current project (./references/<query-slug>)
+  -o, --out <directory>   Save to a custom directory path
+
+OTHER OPTIONS:
   -c, --count <number>    Number of images to fetch (default: 12)
-  -o, --out <directory>   Output directory (default: ./references/<query-slug>)
   -h, --help              Show this help message
   -v, --version           Show version
 
 EXAMPLES:
+  # Quick ephemeral vision check (saves to temp):
   pinref search "cyberpunk character design" --count 12
-  pinref similar "1057008975051301499"
-  pinref "minimalist architecture moodboard"
-  pinref pin "893049801158256972"
+
+  # Persist references in current project workspace:
+  pinref search "minimalist architecture moodboard" --save
+
+  # Branch variations and save locally:
+  pinref similar "1057008975051301499" -s
+
+  # Clean temp cache:
+  pinref clean
 `);
 }
 
 function parseOptions(rawArgs) {
   const options = {
     count: 12,
-    out: null
+    out: null,
+    save: false,
+    cleanLocal: false
   };
   const filtered = [];
 
@@ -45,6 +62,8 @@ function parseOptions(rawArgs) {
       options.count = parseInt(rawArgs[++i], 10) || 12;
     } else if (arg === '-o' || arg === '--out') {
       options.out = rawArgs[++i];
+    } else if (arg === '-s' || arg === '--save' || arg === '--local') {
+      options.save = true;
     } else if (arg === '-h' || arg === '--help') {
       showHelp();
       process.exit(0);
@@ -68,6 +87,25 @@ async function run() {
   const { options, remaining } = parseOptions(args);
   let command = remaining[0];
   let param = remaining.slice(1).join(' ');
+
+  if (command === 'clean') {
+    const tempDir = path.join(os.tmpdir(), 'pinref');
+    if (fs.existsSync(tempDir)) {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+      console.log(`🧹 Cleared Pinref temp cache: ${tempDir}`);
+    } else {
+      console.log(`✨ Temp cache is already clean.`);
+    }
+
+    if (options.save || remaining.includes('--local')) {
+      const localDir = path.resolve(process.cwd(), 'references');
+      if (fs.existsSync(localDir)) {
+        fs.rmSync(localDir, { recursive: true, force: true });
+        console.log(`🧹 Cleared local references: ${localDir}`);
+      }
+    }
+    return;
+  }
 
   if (command !== 'search' && command !== 'similar' && command !== 'pin') {
     param = remaining.join(' ');
@@ -118,7 +156,18 @@ async function run() {
     .slice(0, 40)
     .replace(/^-|-$/g, '') || 'pinterest-reference';
 
-  const outputDir = options.out ? path.resolve(options.out) : path.resolve(process.cwd(), 'references', slug);
+  // Output destination: custom path > --save (current project) > default (os.tmpdir)
+  let outputDir;
+  let isTemp = false;
+
+  if (options.out) {
+    outputDir = path.resolve(options.out);
+  } else if (options.save) {
+    outputDir = path.resolve(process.cwd(), 'references', slug);
+  } else {
+    outputDir = path.join(os.tmpdir(), 'pinref', slug);
+    isTemp = true;
+  }
 
   console.log(`\n📡 Fetching reference images from Pinterest API for: "${searchQuery}"...`);
   const searchResult = PinterestApi.searchPins(searchQuery);
@@ -148,6 +197,12 @@ async function run() {
   console.log(`📁 Download Folder: file://${outputDir}`);
   console.log(`🖼️  Contact Sheet:  file://${contactSheetPath}`);
   console.log(`🌐 HTML Gallery:   file://${galleryPath}`);
+  if (isTemp) {
+    console.log(`ℹ️  Storage: Temp directory (auto-purged by OS).`);
+    console.log(`   To persist in this project, pass: --save (or -s)`);
+  } else {
+    console.log(`💾 Storage: Saved permanently in project.`);
+  }
   console.log(`======================================================\n`);
   console.log(`💡 Next steps:`);
   console.log(`1. View the single contact sheet: file://${contactSheetPath}`);
